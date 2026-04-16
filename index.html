@@ -7,67 +7,20 @@
   <style>
     html,
     body {
-      margin: 0;
-      padding: 0;
       width: 100%;
       height: 100%;
-      background: #050505;
-      color: #f6f6f6;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      scroll-behavior: smooth;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      overflow: hidden;
     }
 
     body {
-      overflow-y: scroll;
+      display: grid;
+      place-items: center;
     }
 
-    .counter {
-      position: fixed;
-      top: 0;
-      right: 0;
-      z-index: 10;
-      min-width: 4.5rem;
-      box-sizing: border-box;
-      padding: 6px 8px;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.72);
-      text-align: right;
-      font-size: 14px;
-      line-height: 1.2;
-    }
-
-    .openButton,
-    .fitButton {
-      position: fixed;
-      top: 0;
-      z-index: 10;
-      box-sizing: border-box;
-      margin: 0;
-      padding: 6px 10px;
-      border: 0;
-      border-radius: 0;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.72);
-      font: inherit;
-      font-size: 14px;
-      line-height: 1.2;
-      cursor: pointer;
-    }
-
-    .openButton {
-      left: 0;
-    }
-
-    .fitButton {
-      left: 98px;
-    }
-
-    .openButton:disabled {
-      color: #aaa;
-      cursor: default;
-    }
-
-    .fileInput {
+    input {
       position: absolute;
       width: 1px;
       height: 1px;
@@ -78,34 +31,12 @@
     }
 
     .empty {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
       margin: 0;
       padding: 0;
-      color: #ddd;
-      background: #050505;
+      color: #111;
+      font: 18px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       text-align: center;
-      font-size: 18px;
-    }
-
-    .item {
-      display: block;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      scroll-snap-align: start;
-    }
-
-    .imageWrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100vw;
-      margin: 0;
-      padding: 0;
-      background: #fff;
+      user-select: none;
     }
 
     img {
@@ -113,175 +44,106 @@
       width: auto;
       height: auto;
       max-width: 100vw;
+      max-height: 100vh;
       margin: 0;
       padding: 0;
       object-fit: contain;
     }
-
-    body.fit-screen .imageWrap {
-      min-height: 100vh;
-    }
-
-    body.fit-screen img {
-      max-width: 100vw;
-      max-height: 100vh;
-    }
   </style>
 </head>
-<body class="fit-screen">
-  <button class="openButton" id="openButton" type="button">Open Folder</button>
-  <button class="fitButton" id="fitButton" type="button">Natural Size</button>
-  <div class="counter" id="counter">0/0</div>
-  <input class="fileInput" id="folderInput" type="file" accept="image/*" webkitdirectory directory multiple>
-  <main id="viewer"></main>
+<body>
+  <input id="folderInput" type="file" accept="image/*" webkitdirectory directory multiple>
+  <main id="viewer">
+    <p class="empty">Click to open folder</p>
+  </main>
 
   <script>
-    const viewer = document.getElementById("viewer");
-    const counter = document.getElementById("counter");
-    const openButton = document.getElementById("openButton");
-    const fitButton = document.getElementById("fitButton");
     const folderInput = document.getElementById("folderInput");
+    const viewer = document.getElementById("viewer");
 
-    let items = [];
+    let images = [];
+    let urls = [];
     let currentIndex = 0;
-    let fitScreen = true;
-    let objectUrls = [];
 
     function imageName(file) {
       return file.webkitRelativePath || file.name;
     }
 
-    function revokeObjectUrls() {
-      for (const url of objectUrls) {
+    function revokeUrls() {
+      for (const url of urls) {
         URL.revokeObjectURL(url);
       }
-      objectUrls = [];
-    }
-
-    function updateCounter() {
-      counter.textContent = items.length ? `${currentIndex + 1}/${items.length}` : "0/0";
-    }
-
-    function scrollToIndex(index) {
-      if (!items.length) return;
-      currentIndex = Math.max(0, Math.min(items.length - 1, index));
-      items[currentIndex].scrollIntoView({ behavior: "smooth", block: "start" });
-      updateCounter();
-    }
-
-    function nearestIndex() {
-      let bestIndex = 0;
-      let bestDistance = Infinity;
-
-      for (let index = 0; index < items.length; index += 1) {
-        const distance = Math.abs(items[index].getBoundingClientRect().top);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
-      }
-
-      return bestIndex;
+      urls = [];
     }
 
     function showEmpty() {
-      const empty = document.createElement("div");
+      viewer.replaceChildren();
+      const empty = document.createElement("p");
       empty.className = "empty";
-      empty.textContent = "Click Open Folder";
-      viewer.replaceChildren(empty);
-      items = [];
-      currentIndex = 0;
-      updateCounter();
+      empty.textContent = "Click to open folder";
+      viewer.appendChild(empty);
     }
 
-    function renderFiles(fileList) {
-      revokeObjectUrls();
+    function showImage(index) {
+      if (!images.length) {
+        showEmpty();
+        return;
+      }
 
-      const files = Array.from(fileList)
+      currentIndex = (index + images.length) % images.length;
+      const image = document.createElement("img");
+      image.src = urls[currentIndex];
+      image.alt = imageName(images[currentIndex]);
+      image.title = imageName(images[currentIndex]);
+      viewer.replaceChildren(image);
+    }
+
+    function loadFiles(fileList) {
+      revokeUrls();
+
+      images = Array.from(fileList)
         .filter(file => file.type.startsWith("image/"))
         .sort((a, b) => imageName(a).localeCompare(imageName(b), undefined, {
           numeric: true,
           sensitivity: "base"
         }));
 
-      if (!files.length) {
-        showEmpty();
-        return;
-      }
-
-      viewer.replaceChildren(...files.map((file, index) => {
-        const section = document.createElement("section");
-        section.className = "item";
-        section.id = `item-${index}`;
-
-        const imageWrap = document.createElement("div");
-        imageWrap.className = "imageWrap";
-
-        const image = document.createElement("img");
-        const url = URL.createObjectURL(file);
-        objectUrls.push(url);
-        image.src = url;
-        image.alt = imageName(file);
-        image.title = imageName(file);
-
-        imageWrap.appendChild(image);
-        section.append(imageWrap);
-        return section;
-      }));
-
-      items = Array.from(document.querySelectorAll(".item"));
-      currentIndex = 0;
-      updateCounter();
-      scrollToIndex(0);
+      urls = images.map(file => URL.createObjectURL(file));
+      showImage(0);
     }
 
-    function toggleFitScreen() {
-      fitScreen = !fitScreen;
-      document.body.classList.toggle("fit-screen", fitScreen);
-      fitButton.textContent = fitScreen ? "Natural Size" : "Fit Screen";
-      scrollToIndex(nearestIndex());
-    }
-
-    openButton.addEventListener("click", () => {
+    function openFolder() {
       folderInput.click();
-    });
-
-    fitButton.addEventListener("click", toggleFitScreen);
+    }
 
     folderInput.addEventListener("change", () => {
-      renderFiles(folderInput.files);
+      loadFiles(folderInput.files);
+    });
+
+    document.addEventListener("click", () => {
+      if (!images.length) {
+        openFolder();
+      }
     });
 
     document.addEventListener("keydown", event => {
       if (event.key === "ArrowRight" || event.key === "ArrowDown") {
         event.preventDefault();
-        scrollToIndex(nearestIndex() + 1);
+        showImage(currentIndex + 1);
       }
 
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
         event.preventDefault();
-        scrollToIndex(nearestIndex() - 1);
-      }
-
-      if (event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        toggleFitScreen();
+        showImage(currentIndex - 1);
       }
 
       if (event.key.toLowerCase() === "o") {
         event.preventDefault();
-        folderInput.click();
+        openFolder();
       }
     });
 
-    window.addEventListener("scroll", () => {
-      currentIndex = nearestIndex();
-      updateCounter();
-    }, { passive: true });
-
-    window.addEventListener("pagehide", revokeObjectUrls);
-
-    showEmpty();
+    window.addEventListener("pagehide", revokeUrls);
   </script>
 </body>
 </html>
